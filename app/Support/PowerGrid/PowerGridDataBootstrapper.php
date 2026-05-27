@@ -5,6 +5,7 @@ namespace App\Support\PowerGrid;
 use App\Models\EnergyObservation;
 use App\Models\Region;
 use App\Models\SourceVariable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -12,21 +13,41 @@ class PowerGridDataBootstrapper
 {
     public function ensureSeeded(): void
     {
-        if ($this->hasObservationData()) {
+        $latestObservedAt = $this->latestObservedAt();
+
+        if (! $this->shouldRefresh($latestObservedAt)) {
             return;
         }
 
-        Log::warning('power_grid.observations_empty_bootstrap_starting', $this->counts());
+        Log::warning('power_grid.observations_refresh_needed', [
+            ...$this->counts(),
+            'latest_observed_at' => $latestObservedAt?->toIso8601String(),
+            'refresh_after_minutes' => $this->refreshAfterMinutes(),
+        ]);
 
-        Cache::lock('power-grid-data-bootstrap', 30)->block(5, function (): void {
-            if ($this->hasObservationData()) {
-                Log::info('power_grid.observations_bootstrap_skipped_after_lock', $this->counts());
+        $refreshed = Cache::lock('power-grid-data-refresh', 30)->get(function (): bool {
+            $latestObservedAt = $this->latestObservedAt();
 
-                return;
+            if (! $this->shouldRefresh($latestObservedAt)) {
+                Log::info('power_grid.observations_refresh_skipped_after_lock', [
+                    ...$this->counts(),
+                    'latest_observed_at' => $latestObservedAt?->toIso8601String(),
+                ]);
+
+                return true;
             }
 
             $this->seed();
+
+            return true;
         });
+
+        if ($refreshed !== true) {
+            Log::info('power_grid.observations_refresh_skipped_lock_busy', [
+                ...$this->counts(),
+                'latest_observed_at' => $latestObservedAt?->toIso8601String(),
+            ]);
+        }
     }
 
     public function seed(): void
@@ -77,9 +98,25 @@ class PowerGridDataBootstrapper
         Log::info('power_grid.seed_completed', $this->counts());
     }
 
-    private function hasObservationData(): bool
+    private function latestObservedAt(): ?CarbonInterface
     {
-        return EnergyObservation::query()->exists();
+        $latestObservedAt = EnergyObservation::query()->max('observed_at');
+
+        return $latestObservedAt === null ? null : now()->parse($latestObservedAt);
+    }
+
+    private function shouldRefresh(?CarbonInterface $latestObservedAt): bool
+    {
+        if ($latestObservedAt === null) {
+            return true;
+        }
+
+        return $latestObservedAt->lessThan(now()->subMinutes($this->refreshAfterMinutes()));
+    }
+
+    private function refreshAfterMinutes(): int
+    {
+        return max(1, (int) config('services.power_grid.refresh_after_minutes', 60));
     }
 
     /**

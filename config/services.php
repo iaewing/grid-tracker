@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'power_grid' => [
+        'refresh_after_minutes' => env('POWER_GRID_REFRESH_AFTER_MINUTES', 60),
+    ],
+
 ];

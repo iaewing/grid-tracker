@@ -78,6 +78,26 @@ test('empty deployed data is bootstrapped on first request', function () {
         ->and(EnergyObservation::query()->count())->toBe(720);
 });
 
+test('stale deployed data is refreshed on visit', function () {
+    config(['services.power_grid.refresh_after_minutes' => 60]);
+
+    $this->seed(PowerGridSeeder::class);
+
+    EnergyObservation::query()->get()->each(function (EnergyObservation $observation): void {
+        $observation->update([
+            'observed_at' => $observation->observed_at->subHours(3),
+            'freshness_status' => 'stale',
+        ]);
+    });
+
+    $this->getJson(route('regions.show', ['region' => 'ON']))
+        ->assertOk()
+        ->assertJsonPath('status', 'current');
+
+    expect(EnergyObservation::query()->count())->toBe(720)
+        ->and(now()->parse(EnergyObservation::query()->max('observed_at'))->greaterThan(now()->subHour()))->toBeTrue();
+});
+
 test('power grid seed data is idempotent for deploy commands', function () {
     $this->seed(PowerGridSeeder::class);
     $this->seed(PowerGridSeeder::class);
