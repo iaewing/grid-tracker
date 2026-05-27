@@ -1,0 +1,57 @@
+<?php
+
+use App\Models\EnergyObservation;
+use App\Models\Region;
+use Database\Seeders\PowerGridSeeder;
+use Inertia\Testing\AssertableInertia as Assert;
+
+test('home page renders all provinces and territories', function () {
+    $this->seed(PowerGridSeeder::class);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('welcome')
+            ->has('regions', 13)
+            ->has('initialRegion.region', fn (Assert $page) => $page
+                ->where('code', 'ON')
+                ->where('name', 'Ontario')
+                ->etc()
+            )
+            ->has('initialRegion.source_mix')
+            ->has('ranges', 4)
+            ->has('sources', 2)
+        );
+});
+
+test('region endpoint validates range and returns normalized data', function () {
+    $this->seed(PowerGridSeeder::class);
+
+    $this->getJson(route('regions.show', ['region' => 'AB', 'range' => 'week']))
+        ->assertOk()
+        ->assertJsonPath('region.code', 'AB')
+        ->assertJsonPath('range', 'week')
+        ->assertJsonStructure([
+            'summary' => ['demand_mw', 'generation_mw', 'clean_share'],
+            'source_mix' => [['code', 'label', 'category', 'fuel_type', 'is_clean', 'value', 'unit']],
+            'trend' => [['label', 'demand', 'generation']],
+        ]);
+
+    $this->getJson(route('regions.show', ['region' => 'AB', 'range' => 'decade']))
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.range.0', 'The selected range is invalid.');
+});
+
+test('missing source data returns unavailable state', function () {
+    $this->seed(PowerGridSeeder::class);
+
+    EnergyObservation::query()
+        ->whereBelongsTo(Region::query()->where('code', 'ON')->firstOrFail())
+        ->delete();
+
+    $this->getJson(route('regions.show', ['region' => 'ON']))
+        ->assertOk()
+        ->assertJsonPath('status', 'unavailable')
+        ->assertJsonPath('summary.demand_mw', null)
+        ->assertJsonCount(0, 'source_mix');
+});
