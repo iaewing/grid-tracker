@@ -6,6 +6,7 @@ use App\Models\EnergyObservation;
 use App\Models\Region;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class EnergyObservationAggregator
 {
@@ -20,12 +21,25 @@ class EnergyObservationAggregator
         $region = Region::query()->where('code', $regionMetadata['code'])->first();
 
         if (! $region instanceof Region) {
+            Log::warning('power_grid.region_unavailable_missing_region_row', [
+                'region_code' => $regionMetadata['code'],
+                'range' => $range,
+            ]);
+
             return $this->unavailablePayload($regionMetadata, $range);
         }
 
         $observations = $this->observations($region, $range);
 
         if ($observations->isEmpty()) {
+            Log::warning('power_grid.region_unavailable_no_observations', [
+                'region_code' => $region->code,
+                'range' => $range,
+                'region_observation_count' => EnergyObservation::query()->whereBelongsTo($region)->count(),
+                'total_observation_count' => EnergyObservation::query()->count(),
+                'latest_observed_at' => EnergyObservation::query()->whereBelongsTo($region)->max('observed_at'),
+            ]);
+
             return $this->unavailablePayload($regionMetadata, $range);
         }
 

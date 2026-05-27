@@ -2,6 +2,8 @@
 
 use App\Models\EnergyObservation;
 use App\Models\Region;
+use App\Models\SourceVariable;
+use App\Support\PowerGrid\PowerGridDataBootstrapper;
 use Database\Seeders\PowerGridSeeder;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -49,11 +51,31 @@ test('missing source data returns unavailable state', function () {
         ->whereBelongsTo(Region::query()->where('code', 'ON')->firstOrFail())
         ->delete();
 
+    app()->instance(PowerGridDataBootstrapper::class, new class extends PowerGridDataBootstrapper
+    {
+        public function ensureSeeded(): void {}
+    });
+
     $this->getJson(route('regions.show', ['region' => 'ON']))
         ->assertOk()
         ->assertJsonPath('status', 'unavailable')
         ->assertJsonPath('summary.demand_mw', null)
         ->assertJsonCount(0, 'source_mix');
+});
+
+test('empty deployed data is bootstrapped on first request', function () {
+    expect(Region::query()->count())->toBe(0)
+        ->and(SourceVariable::query()->count())->toBe(0)
+        ->and(EnergyObservation::query()->count())->toBe(0);
+
+    $this->getJson(route('regions.show', ['region' => 'ON']))
+        ->assertOk()
+        ->assertJsonPath('status', 'current')
+        ->assertJsonPath('region.code', 'ON');
+
+    expect(Region::query()->count())->toBe(13)
+        ->and(SourceVariable::query()->count())->toBe(17)
+        ->and(EnergyObservation::query()->count())->toBe(720);
 });
 
 test('power grid seed data is idempotent for deploy commands', function () {

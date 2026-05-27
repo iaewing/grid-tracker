@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Support\PowerGrid\CanadianRegionCatalog;
 use App\Support\PowerGrid\EnergyObservationAggregator;
+use App\Support\PowerGrid\PowerGridDataBootstrapper;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PowerGridController extends Controller
 {
-    public function __invoke(CanadianRegionCatalog $regions, EnergyObservationAggregator $aggregator): Response
+    public function __invoke(CanadianRegionCatalog $regions, EnergyObservationAggregator $aggregator, PowerGridDataBootstrapper $dataBootstrapper): Response
     {
+        $dataBootstrapper->ensureSeeded();
+
         $regionPayloads = collect($regions->all())
             ->map(fn (array $region): array => [
                 ...$region,
