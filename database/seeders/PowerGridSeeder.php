@@ -23,6 +23,10 @@ class PowerGridSeeder extends Seeder
         $regionModels = Region::query()->get()->keyBy('code');
         $baseObservedAt = now()->startOfHour();
 
+        EnergyObservation::query()
+            ->where('metadata->seeded', true)
+            ->delete();
+
         $profiles = [
             'BC' => ['demand' => 7200, 'hydro' => 5900, 'wind' => 320, 'solar' => 60, 'nuclear' => 0, 'biomass' => 220, 'gas' => 650, 'coal' => 0, 'oil' => 20],
             'AB' => ['demand' => 11400, 'hydro' => 420, 'wind' => 2100, 'solar' => 640, 'nuclear' => 0, 'biomass' => 120, 'gas' => 7200, 'coal' => 280, 'oil' => 40],

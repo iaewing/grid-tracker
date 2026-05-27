@@ -17,9 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(PowerGridSeeder::class);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        User::query()->updateOrCreate(
+            ['email' => 'test@example.com'],
+            [
+                'name' => 'Test User',
+                'password' => 'password',
+            ],
+        );
     }
 }

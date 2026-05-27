@@ -55,3 +55,11 @@ test('missing source data returns unavailable state', function () {
         ->assertJsonPath('summary.demand_mw', null)
         ->assertJsonCount(0, 'source_mix');
 });
+
+test('power grid seed data is idempotent for deploy commands', function () {
+    $this->seed(PowerGridSeeder::class);
+    $this->seed(PowerGridSeeder::class);
+
+    expect(Region::query()->count())->toBe(13)
+        ->and(EnergyObservation::query()->count())->toBe(720);
+});
