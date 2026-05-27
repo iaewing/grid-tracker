@@ -134,7 +134,7 @@ export default function Welcome({
             <Head title="Canada Power Generation" />
             <main className="min-h-screen bg-[#f8faf8] text-[#17201b] dark:bg-[#111412] dark:text-[#f4f7f5]">
                 <section className="border-b border-[#dfe7e1] bg-white dark:border-[#29322d] dark:bg-[#161a18]">
-                    <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+                    <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-3 py-5 sm:px-4 lg:px-5 2xl:px-6">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="max-w-3xl">
                                 <p className="text-sm font-semibold text-[#0f766e] dark:text-[#5eead4]">
@@ -174,7 +174,7 @@ export default function Welcome({
                     </div>
                 </section>
 
-                <section className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_420px] lg:px-8">
+                <section className="mx-auto grid w-full max-w-[1800px] gap-5 px-3 py-5 sm:px-4 lg:grid-cols-[minmax(0,1fr)_440px] lg:px-5 xl:grid-cols-[minmax(0,1fr)_460px] 2xl:px-6">
                     <div className="flex flex-col gap-6">
                         <div>
                             <div className="mb-3 flex items-center justify-between gap-3">
