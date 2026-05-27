@@ -435,12 +435,18 @@ function SourceMixChart({ variables }: { variables: Variable[] }) {
     }
 
     const segments = variables.reduce<
-        Array<{ variable: Variable; x: number; width: number }>
+        Array<{
+            variable: Variable;
+            x: number;
+            width: number;
+            percentage: number;
+        }>
     >((items, variable) => {
         const x = items.reduce((sum, item) => sum + item.width, 0);
         const width = (variable.value / total) * 320;
+        const percentage = (variable.value / total) * 100;
 
-        return [...items, { variable, x, width }];
+        return [...items, { variable, x, width, percentage }];
     }, []);
 
     return (
@@ -451,20 +457,37 @@ function SourceMixChart({ variables }: { variables: Variable[] }) {
                 role="img"
                 aria-label="Stacked source mix chart"
             >
-                {segments.map(({ variable, x, width }) => (
-                    <rect
-                        key={variable.code}
-                        x={x}
-                        y="8"
-                        width={Math.max(width, 1)}
-                        height="44"
-                        fill={
-                            fuelColors[variable.fuel_type ?? 'other'] ??
-                            fuelColors.other
-                        }
-                        rx="3"
-                    />
-                ))}
+                {segments.map(({ variable, x, width, percentage }) => {
+                    const color =
+                        fuelColors[variable.fuel_type ?? 'other'] ??
+                        fuelColors.other;
+
+                    return (
+                        <g key={variable.code}>
+                            <rect
+                                x={x}
+                                y="8"
+                                width={Math.max(width, 1)}
+                                height="44"
+                                fill={color}
+                                rx="3"
+                            />
+                            {width >= 34 && (
+                                <text
+                                    x={x + width / 2}
+                                    y="34"
+                                    textAnchor="middle"
+                                    className="fill-white text-[10px] font-semibold"
+                                    paintOrder="stroke"
+                                    stroke="rgba(0,0,0,0.35)"
+                                    strokeWidth="2"
+                                >
+                                    {formatPercent(percentage)}
+                                </text>
+                            )}
+                        </g>
+                    );
+                })}
             </svg>
             <div className="grid grid-cols-2 gap-2 text-sm">
                 {variables.map((variable) => (
@@ -480,7 +503,12 @@ function SourceMixChart({ variables }: { variables: Variable[] }) {
                                     fuelColors.other,
                             }}
                         />
-                        <span className="truncate">{variable.label}</span>
+                        <span className="truncate">
+                            {variable.label}{' '}
+                            <span className="text-[#64746a] dark:text-[#aab6af]">
+                                {formatPercent((variable.value / total) * 100)}
+                            </span>
+                        </span>
                     </div>
                 ))}
             </div>
@@ -496,16 +524,27 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
         ]),
         1,
     );
-    const width = 360;
-    const height = 180;
-    const step = points.length > 1 ? width / (points.length - 1) : width;
+    const width = 420;
+    const height = 220;
+    const margin = { top: 16, right: 12, bottom: 34, left: 58 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const yMax = niceMax(maxValue);
+    const yTicks = [0, yMax * 0.25, yMax * 0.5, yMax * 0.75, yMax];
+    const step =
+        points.length > 1 ? plotWidth / (points.length - 1) : plotWidth;
+    const x = (index: number) => margin.left + index * step;
+    const y = (value: number | null) =>
+        margin.top + plotHeight - ((value ?? 0) / yMax) * plotHeight;
     const line = (key: 'demand' | 'generation') =>
-        points
-            .map(
-                (point, index) =>
-                    `${index * step},${height - (((point[key] ?? 0) / maxValue) * (height - 20) + 10)}`,
-            )
-            .join(' ');
+        points.map((point, index) => `${x(index)},${y(point[key])}`).join(' ');
+    const xLabelIndexes = Array.from(
+        new Set([
+            0,
+            Math.floor((points.length - 1) / 2),
+            Math.max(points.length - 1, 0),
+        ]),
+    );
 
     if (points.length === 0) {
         return <EmptyChart label="No trend data" />;
@@ -519,6 +558,46 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
                 role="img"
                 aria-label="Demand and generation trend chart"
             >
+                {yTicks.map((tick) => {
+                    const tickY = y(tick);
+
+                    return (
+                        <g key={tick}>
+                            <line
+                                x1={margin.left}
+                                x2={width - margin.right}
+                                y1={tickY}
+                                y2={tickY}
+                                stroke="#dbe5df"
+                                strokeWidth="1"
+                            />
+                            <text
+                                x={margin.left - 8}
+                                y={tickY + 4}
+                                textAnchor="end"
+                                className="fill-[#64746a] text-[10px] dark:fill-[#aab6af]"
+                            >
+                                {formatCompactNumber(tick)}
+                            </text>
+                        </g>
+                    );
+                })}
+                <line
+                    x1={margin.left}
+                    x2={margin.left}
+                    y1={margin.top}
+                    y2={margin.top + plotHeight}
+                    stroke="#9aa8a0"
+                    strokeWidth="1"
+                />
+                <line
+                    x1={margin.left}
+                    x2={width - margin.right}
+                    y1={margin.top + plotHeight}
+                    y2={margin.top + plotHeight}
+                    stroke="#9aa8a0"
+                    strokeWidth="1"
+                />
                 <polyline
                     points={line('generation')}
                     fill="none"
@@ -535,6 +614,23 @@ function TrendChart({ points }: { points: TrendPoint[] }) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
+                {xLabelIndexes.map((index) => (
+                    <text
+                        key={`${points[index]?.label}-${index}`}
+                        x={x(index)}
+                        y={height - 10}
+                        textAnchor={
+                            index === 0
+                                ? 'start'
+                                : index === points.length - 1
+                                  ? 'end'
+                                  : 'middle'
+                        }
+                        className="fill-[#64746a] text-[10px] dark:fill-[#aab6af]"
+                    >
+                        {points[index]?.label}
+                    </text>
+                ))}
             </svg>
             <div className="flex gap-4 text-sm">
                 <span className="flex items-center gap-2">
@@ -564,6 +660,27 @@ function formatNumber(value: number | null) {
         : new Intl.NumberFormat('en-CA', { maximumFractionDigits: 1 }).format(
               value,
           );
+}
+
+function formatCompactNumber(value: number) {
+    return new Intl.NumberFormat('en-CA', {
+        notation: 'compact',
+        maximumFractionDigits: 1,
+    }).format(value);
+}
+
+function formatPercent(value: number) {
+    return `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 0 }).format(value)}%`;
+}
+
+function niceMax(value: number) {
+    const exponent = Math.floor(Math.log10(value));
+    const magnitude = 10 ** exponent;
+    const normalized = value / magnitude;
+    const rounded =
+        normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+
+    return rounded * magnitude;
 }
 
 function formatTimestamp(value: string | null) {
